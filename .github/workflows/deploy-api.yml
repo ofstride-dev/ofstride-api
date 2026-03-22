@@ -25,10 +25,12 @@ jobs:
     - name: Prepare deployment package
       run: |
         mkdir -p deploy_package
-        cp -r . deploy_package/
+        cp -r . deploy_package/ --no-preserve=mode
         cd deploy_package
         rm -rf .git .github .pytest_cache __pycache__ *.pyc .env .gitignore
-        zip -r app.zip . -x "*.pyc" "__pycache__/*"
+        zip -r ../deploy_package/app.zip . -x "*.pyc" "__pycache__/*"
+        cd ..
+        ls -lah deploy_package/
     
     - name: Deploy to Azure App Service
       uses: azure/webapps-deploy@v2
