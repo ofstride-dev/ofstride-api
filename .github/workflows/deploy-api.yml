@@ -28,10 +28,21 @@ jobs:
         ls -la
         zip -r app.zip . -x ".git/*" ".github/*" "__pycache__/*" "*.pyc" ".env" ".gitignore" ".pytest_cache/*" "venv/*"
         ls -lah app.zip
+        file app.zip
     
-    - name: Deploy to Azure App Service
-      uses: azure/webapps-deploy@v2
-      with:
-        app-name: was-ofstride-api-001
-        publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE_API }}
-        package: app.zip
+    - name: Deploy to Azure using Kudu
+      env:
+        USERNAME: ${{ secrets.AZURE_DEPLOY_USERNAME }}
+        PASSWORD: ${{ secrets.AZURE_DEPLOY_PASSWORD }}
+      run: |
+        echo "Deploying to Azure App Service..."
+        SITE_URL="was-ofstride-api-001.azurewebsites.net"
+        
+        curl -X POST \
+          --basic -u "$USERNAME:$PASSWORD" \
+          -H "Content-Type: application/zip" \
+          --data-binary @app.zip \
+          "https://$SITE_URL/api/zipdeploy" \
+          -v
+        
+        echo "Deployment sent to Azure"
