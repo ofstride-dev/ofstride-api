@@ -22,18 +22,16 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
     
-    - name: Prepare deployment package
+    - name: Create deployment package
       run: |
-        mkdir -p deploy_package
-        cp -r . deploy_package/ --no-preserve=mode
-        cd deploy_package
-        rm -rf .git .github .pytest_cache __pycache__ *.pyc .env .gitignore
-        zip -r ../app.zip . -x "*.pyc" "__pycache__/*"
-        cd ..
+        pwd
+        ls -la
+        zip -r app.zip . -x ".git/*" ".github/*" "__pycache__/*" "*.pyc" ".env" ".gitignore" ".pytest_cache/*" "venv/*"
+        ls -lah app.zip
     
     - name: Deploy to Azure App Service
       uses: azure/webapps-deploy@v2
       with:
         app-name: was-ofstride-api-001
         publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE_API }}
-        package: deploy_package/app.zip
+        package: app.zip
