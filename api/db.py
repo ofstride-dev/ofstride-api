@@ -31,6 +31,7 @@ def init_db() -> None:
                 timestamp TEXT,
                 name TEXT,
                 phone TEXT,
+                email TEXT,
                 location TEXT,
                 company TEXT,
                 task_summary TEXT,
@@ -90,6 +91,14 @@ def init_db() -> None:
             );
             """
         )
+
+
+def _migrate_add_email_column(conn: sqlite3.Connection) -> None:
+    """Add email column to leads table if it doesn't exist yet (safe migration)."""
+    try:
+        conn.execute("ALTER TABLE leads ADD COLUMN email TEXT DEFAULT ''")
+    except Exception:
+        pass  # Column already exists
 
 
 def _table_is_empty(conn: sqlite3.Connection, table: str) -> bool:
