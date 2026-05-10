@@ -8,6 +8,7 @@ from pydantic import BaseModel
 class LeadPayload(BaseModel):
     name: str
     phone: str
+    email: str = ""          # collected in chatbot intake step
     location: str
     company: str
     taskSummary: str
