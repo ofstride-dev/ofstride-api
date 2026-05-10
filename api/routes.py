@@ -23,7 +23,9 @@ from .services import (
     chat_with_saarthi,
     extract_json_from_text,
     find_best_consultant,
-    _send_email,
+    _send_confirmation_email,
+    _send_consultant_notification,
+    _send_user_consultant_email,
     _send_whatsapp,
 )
 from new_agent.chart_tools import overview as chart_overview
@@ -39,17 +41,22 @@ def on_startup() -> None:
 
 @router.post("/api/leads")
 def create_lead(payload: LeadPayload):
+    """
+    Save lead to DB and immediately send a confirmation email to the user.
+    The confirmation is fire-and-forget — a failure doesn't block the 200 response.
+    """
     with get_db() as conn:
         conn.execute(
             """
             INSERT INTO leads (
-                timestamp, name, phone, location, company, task_summary, preferred_time, preferred_timezone
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                timestamp, name, phone, email, location, company, task_summary, preferred_time, preferred_timezone
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 datetime.utcnow().isoformat(),
                 payload.name.strip(),
                 payload.phone.strip(),
+                (payload.email or "").strip(),
                 payload.location.strip(),
                 payload.company.strip(),
                 payload.taskSummary.strip(),
@@ -57,6 +64,18 @@ def create_lead(payload: LeadPayload):
                 (payload.preferredTimezone or "").strip(),
             ),
         )
+
+    # Instant confirmation to the user — non-blocking
+    if payload.email:
+        try:
+            _send_confirmation_email(
+                lead_name=payload.name,
+                lead_email=payload.email,
+                task_summary=payload.taskSummary,
+            )
+        except Exception:
+            pass  # Never fail the lead save because of email
+
     return {"ok": True}
 
 
@@ -84,6 +103,10 @@ def get_consultant(payload: ConsultantRequest):
 
 @router.post("/api/notify")
 def log_notification(payload: NotifyPayload):
+    """
+    Log the notification, email the consultant + Ofstride inbox, and
+    send the user a warm email telling them who will contact them.
+    """
     with get_db() as conn:
         conn.execute(
             """
@@ -105,21 +128,33 @@ def log_notification(payload: NotifyPayload):
             ),
         )
 
-    email_status = _send_email(
-        "New Offstride consultation request",
-        (
-            f"Lead: {payload.lead.name}\n"
-            f"Phone: {payload.lead.phone}\n"
-            f"Location: {payload.lead.location}\n"
-            f"Company: {payload.lead.company}\n"
-            f"Task: {payload.lead.taskSummary}\n"
-            f"Preferred time: {payload.lead.preferredTime or '-'} {payload.lead.preferredTimezone or ''}\n\n"
-            f"Consultant: {payload.consultant.name} ({payload.consultant.role})\n"
-            f"Consultant phone: {payload.consultant.mobile}\n"
-            f"Consultant email: {payload.consultant.email}"
-        ),
-        recipients=[payload.consultant.email],
+    # Email 1: Full notification to consultant + central inbox (+ CC user)
+    notify_status = _send_consultant_notification(
+        lead_name=payload.lead.name,
+        lead_email=(payload.lead.email or ""),
+        lead_phone=payload.lead.phone,
+        lead_location=payload.lead.location,
+        lead_company=payload.lead.company,
+        task_summary=payload.lead.taskSummary,
+        preferred_time=(payload.lead.preferredTime or ""),
+        preferred_timezone=(payload.lead.preferredTimezone or ""),
+        consultant_name=payload.consultant.name,
+        consultant_role=payload.consultant.role,
+        consultant_mobile=payload.consultant.mobile,
+        consultant_email=payload.consultant.email,
     )
+
+    # Email 2: Warm email to user with their consultant's details
+    user_status = _send_user_consultant_email(
+        lead_name=payload.lead.name,
+        lead_email=(payload.lead.email or ""),
+        consultant_name=payload.consultant.name,
+        consultant_role=payload.consultant.role,
+        consultant_mobile=payload.consultant.mobile,
+        consultant_email=payload.consultant.email,
+    )
+
+    # WhatsApp to internal team
     whatsapp_status = _send_whatsapp(
         (
             f"New consultation request\n"
@@ -131,7 +166,12 @@ def log_notification(payload: NotifyPayload):
         )
     )
 
-    return {"ok": True, "email": email_status, "whatsapp": whatsapp_status}
+    return {
+        "ok": True,
+        "notify_email": notify_status,
+        "user_email": user_status,
+        "whatsapp": whatsapp_status,
+    }
 
 
 @router.post("/api/hr/hiring")
