@@ -58,5 +58,11 @@ GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 GITHUB_API_URL = os.getenv("GITHUB_API_URL", "https://models.inference.ai.azure.com/chat/completions")
 GITHUB_MODEL = os.getenv("GITHUB_MODEL", "gpt-5.1")
 
+# ── Azure / Foundry Models / LLM ─────────────────────────────────────────────────
+AZURE_API_KEY = os.getenv("AZURE_API_KEY")
+OPENAI_API_URL = os.getenv("API_URL")
+OPENAI_MODEL = os.getenv("GPT_MODEL")
+PROJECT_ENDPOINT = os.getenv("PROJECT_ENDPOINT")
+
 SYSTEM_PROMPT_PATH = API_DIR / "system_prompt.txt"
 RESUME_SYSTEM_PROMPT = SYSTEM_PROMPT_PATH.read_text(encoding="utf-8") if SYSTEM_PROMPT_PATH.exists() else ""

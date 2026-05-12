@@ -17,6 +17,10 @@ from .config import (
     GITHUB_API_URL,
     GITHUB_MODEL,
     GITHUB_TOKEN,
+    OPENAI_API_URL,
+    OPENAI_MODEL,
+    AZURE_API_KEY,
+    PROJECT_ENDPOINT,
     RESEND_API_KEY,
     SAARTHI_CHART_URL,
     SAARTHI_URL,
@@ -31,18 +35,32 @@ from .models import ConsultantInfo
 # ── LLM ───────────────────────────────────────────────────────────────────────
 
 def call_llm(system_prompt: str, user_prompt: str) -> dict:
-    if not GITHUB_TOKEN:
-        raise RuntimeError("GITHUB_TOKEN is not set in environment")
-    headers = {"Content-Type": "application/json", "api-key": GITHUB_TOKEN}
-    payload = {
-        "model": GITHUB_MODEL,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        "temperature": 0.2,
-    }
-    resp = requests.post(GITHUB_API_URL, headers=headers, json=payload, timeout=120)
+    if OPENAI_API_URL and AZURE_API_KEY and OPENAI_MODEL:
+        headers = {"Content-Type": "application/json", "api-key": AZURE_API_KEY}
+        payload = {
+            "model": OPENAI_MODEL,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": 0.2,
+        }
+        resp = requests.post(OPENAI_API_URL, headers=headers, json=payload, timeout=120)
+    elif GITHUB_TOKEN:
+        headers = {"Content-Type": "application/json", "api-key": GITHUB_TOKEN}
+        payload = {
+            "model": GITHUB_MODEL,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": 0.2,
+        }
+        resp = requests.post(GITHUB_API_URL, headers=headers, json=payload, timeout=120)
+    else:
+        raise RuntimeError(
+            "No LLM configuration found. Set AZURE_API_KEY/API_URL/GPT_MODEL for Foundry or GITHUB_TOKEN/GITHUB_API_URL/GITHUB_MODEL for GitHub inference."
+        )
     if resp.status_code != 200:
         raise RuntimeError(f"LLM ERROR: {resp.status_code} - {resp.text}")
     return resp.json()

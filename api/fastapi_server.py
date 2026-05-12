@@ -373,42 +373,50 @@ def migrate_csv_to_db() -> None:
                 )
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-GITHUB_API_URL = "https://models.inference.ai.azure.com/chat/completions"
-GITHUB_MODEL = "gpt-5.1"
+GITHUB_API_URL = os.getenv("GITHUB_API_URL", "https://models.inference.ai.azure.com/chat/completions")
+GITHUB_MODEL = os.getenv("GITHUB_MODEL", "gpt-5.1")
+
+AZURE_API_KEY = os.getenv("AZURE_API_KEY")
+OPENAI_API_URL = os.getenv("API_URL")
+OPENAI_MODEL = os.getenv("GPT_MODEL")
+PROJECT_ENDPOINT = os.getenv("PROJECT_ENDPOINT")
 
 SYSTEM_PROMPT_PATH = API_DIR / "system_prompt.txt"
 RESUME_SYSTEM_PROMPT = SYSTEM_PROMPT_PATH.read_text(encoding="utf-8")
 
 def call_llm(system_prompt: str, user_prompt: str) -> dict:
-    if not GITHUB_TOKEN:
-        raise RuntimeError("GITHUB_TOKEN is not set in environment")
+    if OPENAI_API_URL and AZURE_API_KEY and OPENAI_MODEL:
+        headers = {"Content-Type": "application/json", "api-key": AZURE_API_KEY}
+        payload = {
+            "model": OPENAI_MODEL,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": 0.2,
+        }
+        resp = requests.post(OPENAI_API_URL, headers=headers, json=payload, timeout=120)
+    elif GITHUB_TOKEN:
+        headers = {"Content-Type": "application/json", "api-key": GITHUB_TOKEN}
+        payload = {
+            "model": GITHUB_MODEL,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": 0.2,
+        }
+        resp = requests.post(GITHUB_API_URL, headers=headers, json=payload, timeout=120)
+    else:
+        raise RuntimeError(
+            "No LLM configuration found. Set AZURE_API_KEY/API_URL/GPT_MODEL for Foundry or GITHUB_TOKEN/GITHUB_API_URL/GITHUB_MODEL for GitHub inference."
+        )
 
-    headers = {
-        "Content-Type": "application/json",
-        # ✅ THIS is the important change:
-        "api-key": GITHUB_TOKEN,
-        # If your account instead expects Authorization, use this instead:
-        # "Authorization": GITHUB_TOKEN,
-    }
-
-    payload = {
-        "model": GITHUB_MODEL,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        "temperature": 0.2,
-    }
-
-    resp = requests.post(GITHUB_API_URL, headers=headers, json=payload, timeout=120)
-
-    # Helpful debug if it fails
     if resp.status_code != 200:
         print("LLM ERROR:", resp.status_code, resp.text)
 
     resp.raise_for_status()
-    data = resp.json()
-    return data
+    return resp.json()
 
 import re
 from typing import Any, Dict
